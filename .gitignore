@@ -1,0 +1,6 @@
+.venv/
+.codex-runs/
+__pycache__/
+*.pyc
+config/runtime.local.json
+tests/.work/

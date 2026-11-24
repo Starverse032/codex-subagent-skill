@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "default": "standard",
+  "effort_order": ["medium", "high", "xhigh", "max"],
+  "presets": {
+    "inherit": {
+      "budget_s": 900,
+      "use": "Explicit opt-in: use the runtime's configured model and reasoning effort."
+    },
+    "fast": {
+      "model": "gpt-6.2-sol",
+      "effort": "low",
+      "budget_s": 300,
+      "use": "Explicit low-effort opt-in for cheap, mechanical work; for direct runner use."
+    },
+    "standard": {
+      "model": "gpt-6.2-sol",
+      "effort": "medium",
+      "budget_s": 900,
+      "use": "Default: latest verified Sol with medium reasoning for bounded delegated tasks."
+    },
+    "deep": {
+      "model": "gpt-6.2-sol",
+      "effort": "high",
+      "budget_s": 1800,
+      "use": "Keep Sol and raise reasoning to high for complex logic, uncertain root causes or interacting components."
+    },
+    "max": {
+      "model": "gpt-6.2-sol",
+      "effort": "max",
+      "budget_s": 3600,
+      "use": "Keep Sol and use max reasoning for the hardest bounded problems; use --effort xhigh for the intermediate level."
+    },
+    "image": {
+      "model": "gpt-6.2-sol",
+      "effort": "medium",
+      "gen_image": true,
+      "budget_s": 1200,
+      "use": "Explicit Codex image-generation opt-in; the coordinator independently checks visual acceptance."
+    }
+  }
+}
