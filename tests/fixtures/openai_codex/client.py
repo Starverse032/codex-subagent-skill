@@ -43,8 +43,9 @@ class CodexClient:
         prompt=input_items[0]['text']
         self.long='fixture:long' in prompt
         self.turn_id=str(uuid.uuid4())
-        artifact=prompt.split('run-owned directory: ',1)[1].split('\n',1)[0].rstrip('.')
-        self.run=Path(artifact).parent
+        artifact=(prompt.split('run-owned directory: ',1)[1].split('\n',1)[0].rstrip('.')
+                  if 'run-owned directory: ' in prompt else None)
+        self.run=Path(artifact).parent if artifact else None
         declarations=[]
         generation=[]
         if 'fixture:artifact' in prompt:
@@ -60,7 +61,8 @@ class CodexClient:
         if 'fixture:orphan' in prompt:
             child=subprocess.Popen([sys.executable,'-c','import time; time.sleep(60)'])
             (self.run/'orphan.pid').write_text(str(child.pid))
-        message=json.dumps({'summary':'FIXTURE_OK','artifacts':declarations})
+        message=(json.dumps({'summary':'FIXTURE_OK','artifacts':declarations})
+                 if 'outputSchema' in params else 'FIXTURE_OK')
         if 'fixture:weaken-schema' in prompt:
             (self.run/'response-schema.json').write_text('{"type":"object"}',encoding='utf-8')
         if 'fixture:malformed' in prompt: message='not JSON'

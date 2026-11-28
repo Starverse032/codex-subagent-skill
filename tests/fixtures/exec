@@ -1,0 +1,48 @@
+"""A shell-free native-process fixture. CPython treats 'exec' as a script path."""
+import json
+from pathlib import Path
+import subprocess
+import sys
+import time
+import uuid
+
+
+def emit(event_type, **fields):
+    print(json.dumps({'type':event_type,**fields}),flush=True)
+
+
+args=sys.argv[1:]
+thread=args[1] if args[:1]==['resume'] else str(uuid.uuid4())
+output=Path(args[args.index('-o')+1])
+run=output.parent
+prompt=sys.stdin.buffer.read().decode('utf-8')
+emit('thread.started',thread_id=thread)
+if 'fixture:long' in prompt:
+    time.sleep(60)
+if 'fixture:orphan' in prompt:
+    child=subprocess.Popen([sys.executable,'-c','import time; time.sleep(60)'],
+                           stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+    (run/'orphan.pid').write_text(str(child.pid))
+if 'fixture:failed' in prompt:
+    emit('turn.failed',error='fixture failure')
+else:
+    structured='--output-schema' in args
+    declared=[]
+    if 'fixture:artifact' in prompt:
+        target=run/'artifacts/output.txt'
+        target.write_text('fixture deliverable',encoding='utf-8')
+        declared.append({'path':str(target),'kind':'file'})
+    message='not JSON' if 'fixture:malformed' in prompt else 'FIXTURE_OK'
+    if structured and 'fixture:malformed' not in prompt:
+        message=json.dumps({'summary':message,'artifacts':declared})
+        if declared:
+            (run/'artifact-declarations.json').write_text(json.dumps(declared),encoding='utf-8')
+    if 'fixture:weaken-schema' in prompt:
+        (run/'response-schema.json').write_text('{"type":"object"}',encoding='utf-8')
+    if 'fixture:changed' in prompt:
+        emit('item.completed',item={'type':'file_change','status':'completed',
+                                    'changes':[{'path':'file.txt','kind':'add'}]})
+    if 'fixture:empty' not in prompt:
+        output.write_text(message,encoding='utf-8')
+        emit('item.completed',item={'type':'agent_message','text':message})
+    emit('turn.completed',usage={})

@@ -1,3 +1,4 @@
+# Optional modes only. The standard CLI runner uses no third-party Python packages.
 openai-codex==0.163.0
 jsonschema==4.26.0
 Pillow>=10.4,<14

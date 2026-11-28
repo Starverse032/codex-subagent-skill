@@ -50,6 +50,16 @@ def validate_schema(schema: dict, value):
     from referencing import Registry
     cls(schema, registry=Registry()).validate(value)
 
+
+def validate_builtin(value):
+    if (not isinstance(value,dict) or set(value)!={'summary','artifacts'}
+            or not isinstance(value['summary'],str) or not isinstance(value['artifacts'],list)):
+        raise ValueError('expected a summary string and an artifacts array')
+    for item in value['artifacts']:
+        if (not isinstance(item,dict) or set(item)!={'path','kind'}
+                or not all(isinstance(part,str) for part in item.values())):
+            raise ValueError('each artifact must contain only a path and kind string')
+
 def failed_verification(message):
     return {'status':'failed','errors':[message],'artifacts':[],'images':[],
             'warnings':[],'agent_output':None}
@@ -83,7 +93,10 @@ def verify_artifacts(req: dict, execution: dict, run: Path, *, schema):
     try:
         owned=owned_artifact_root(run)
         answer = json.loads(execution['final_message'])
-        validate_schema(schema, answer)
+        if req.get('custom_schema'):
+            validate_schema(schema, answer)
+        else:
+            validate_builtin(answer)
     except Exception as exc:
         return failed_verification(f'final output validation failed: {exc}')
     declarations = answer.get('artifacts', []) if not req.get('custom_schema') else read_json(run/'artifact-declarations.json', [])
@@ -124,7 +137,7 @@ def verify_artifacts(req: dict, execution: dict, run: Path, *, schema):
             record = {'path':str(path), 'sha256':sha, 'bytes':path.stat().st_size,
                       'kind':declaration.get('kind','file')}
             records.append(record)
-            if path.suffix.lower() in {'.png','.jpg','.jpeg'}:
+            if req.get('gen_image') and path.suffix.lower() in {'.png','.jpg','.jpeg'}:
                 image = {'dst':str(path), 'src':str(path), 'sha256':sha,
                          'confidence':'high' if sha in generated_hashes else 'unverified',
                          'visual_review':'required', **probe_image(path)}
@@ -173,10 +186,12 @@ def run_checks(req: dict, run: Path, deadline: float):
     errors = []
     for index, argv in enumerate(req['checks']):
         if (run/'cancel.request').exists():
-            return records, ['verification cancelled']
+            errors.append('verification cancelled')
+            break
         remaining = deadline - time.monotonic()
         if remaining <= 0:
-            return records, ['verification deadline exceeded']
+            errors.append('verification deadline exceeded')
+            break
         path = run/f'check-{index+1:02d}.log'
         with path.open('wb') as log:
             child = OwnedProcess(argv, cwd=Path(req['workdir']), stdout=log, stderr=log)
@@ -193,33 +208,44 @@ def run_checks(req: dict, run: Path, deadline: float):
                 code = child.proc.poll()
             finally:
                 child.close()
-        records.append({'argv':argv, 'exit_code':code, 'log':path.name, 'stop_reason':reason})
+        records.append({'index':index+1,'exit_code':code, 'log':path.name, 'stop_reason':reason,
+                        'status':'failed' if reason or code!=0 else 'passed'})
         if reason or code != 0:
             errors.append(f'acceptance command {index+1} failed: {reason or code}')
             break
+    records.extend({'index':index+1,'status':'not_run'} for index in range(len(records),len(req['checks'])))
+    files=[]
     for raw in req['required_files']:
         path = Path(raw)
         path = path if path.is_absolute() else Path(req['workdir'])/path
-        if not contained(path, Path(req['workdir'])) or not path.is_file():
+        present=contained(path, Path(req['workdir'])) and path.is_file()
+        files.append({'path':raw,'status':'passed' if present else 'failed'})
+        if not present:
             errors.append(f'required file missing or outside workdir: {raw}')
-    return records, errors
+    return records, files, errors
 
 def verifier_main(run: Path,plan: dict):
     """All checks and potentially blocking decoding/copies run in an owned process."""
     req=plan['request']
     execution=plan['execution']
     from .backends import progress
-    progress_state={'thread_id':execution.get('thread_id',''),'turn_id':execution.get('turn_id',''),'warnings':[]}
+    progress_state={'thread_id':execution.get('thread_id',''),'turn_id':execution.get('turn_id',''),
+                    'last_event_at':execution.get('last_event_at'),
+                    'completed_tool_count':execution.get('completed_tool_count',0),'warnings':[]}
     try:
         owned_artifact_root(run)
         progress(run,progress_state,'verifying','running caller acceptance commands')
-        checks,errors=run_checks(req,run,plan['deadline'])
+        checks,files,errors=run_checks(req,run,plan['deadline'])
         if (run/'cancel.request').exists() or time.monotonic()>=plan['deadline']:
             verification=failed_verification('verification stopped before final artifact checks')
-        else:
+        elif plan['schema'] is not None:
             progress(run,progress_state,'verifying','validating final artifacts')
             verification=verify_artifacts(req,execution,run,schema=plan['schema'])
+        else:
+            verification={'status':'passed','errors':[],'warnings':[],'artifacts':[],
+                          'images':[],'agent_output':None}
         verification['checks']=checks
+        verification['required_files']=files
         verification['errors']+=errors
         if verification['errors']: verification['status']='failed'
     except Exception as exc:

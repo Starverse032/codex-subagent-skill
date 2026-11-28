@@ -8,9 +8,10 @@ import uuid
 from . import VERSION
 
 TERMINAL = {'ok', 'failed', 'timeout', 'cancelled', 'image_missing',
-            'verification_failed', 'internal_error', 'lost'}
+            'verification_failed', 'internal_error', 'lost', 'thread_busy', 'status_unknown'}
 EXIT = {'ok': 0, 'failed': 6, 'timeout': 5, 'cancelled': 130,
-        'image_missing': 8, 'verification_failed': 9, 'internal_error': 4, 'lost': 4}
+        'image_missing': 8, 'verification_failed': 9, 'internal_error': 4, 'lost': 4,
+        'thread_busy': 10, 'status_unknown': 11}
 
 def read_json(path: Path, default=None, *, attempts=20):
     for attempt in range(attempts):
@@ -46,6 +47,7 @@ def initial_result(request: dict) -> dict:
             'duration_s': 0, 'request': request, 'final_message': '',
             'final_message_source': '', 'thread_id': '', 'turn_id': '',
             'usage': {}, 'tool_calls': [], 'images': [], 'warnings': [], 'errors': [],
+            'changed_files': [], 'diff_stat': None,
             'execution': {'status': 'queued'}, 'verification': {'status': 'not_run'},
             'artifacts': {'events': 'events.jsonl', 'prompt': 'prompt.md',
                           'stderr': 'stderr.log', 'last_message': 'last-message.md',

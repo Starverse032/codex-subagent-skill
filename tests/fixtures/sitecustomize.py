@@ -7,12 +7,12 @@ import time
 if os.environ.get('CODEX_SUBAGENT_TEST_BLOCK_VERIFY')=='1' and '_verify' in sys.argv:
     sys.path.insert(0,str(Path(sys.argv[0]).resolve().parent))
     from runner import verify
-    original=verify.verify_artifacts
-    def blocked(req,execution,run,*,schema):
+    original=verify.run_checks
+    def blocked(req,run,deadline):
         (run/'verifier-entered').write_text('inside artifact verification',encoding='utf-8')
         time.sleep(60)
-        return original(req,execution,run,schema=schema)
-    verify.verify_artifacts=blocked
+        return original(req,run,deadline)
+    verify.run_checks=blocked
 
 if os.environ.get('CODEX_SUBAGENT_TEST_PROGRESS_READ_LOCK')=='1' and '_worker' in sys.argv:
     sys.path.insert(0,str(Path(sys.argv[0]).resolve().parent))

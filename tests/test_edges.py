@@ -9,7 +9,7 @@ import time
 import uuid
 from unittest.mock import patch
 
-from test_runner import RunnerTests,verify_artifacts
+from test_runner import RunnerTests,verify_artifacts,requires_images,requires_schema
 from runner.cli import worker_alive
 from runner.processes import OwnedProcess,process_birth,owned_tree_stopped
 from runner.store import read_json,write_json
@@ -30,6 +30,7 @@ class EdgeTests(unittest.TestCase):
             self.assertLess(time.monotonic(),deadline,'condition did not become true')
             time.sleep(.05)
 
+    @requires_schema
     def test_model_cannot_weaken_schema(self):
         schema=self.base/'schema.json'
         write_json(schema,{'type':'object','properties':{'accepted':{'const':True}},'required':['accepted']})
@@ -51,7 +52,7 @@ class EdgeTests(unittest.TestCase):
         self.assertEqual(p.returncode,0,result)
         self.assertEqual(result['verification']['status'],'passed')
         self.assertTrue(result['warnings'])
-        self.assertTrue(read_json(run/'artifact-manifest.json'))
+        self.assertFalse((run/'artifact-manifest.json').exists())
 
     def test_control_json_retries_a_transient_sharing_violation(self):
         from runner import store
@@ -60,19 +61,23 @@ class EdgeTests(unittest.TestCase):
             self.assertEqual(store.read_json(self.base/'control.json'),{'ok':True})
         self.assertEqual(read.call_count,2)
 
+    @requires_schema
     def test_final_manifest_describes_post_check_file(self):
         run=self.base/'final-manifest'
         target=run/'artifacts/output.txt'
         spec=self.base/'task.json'
         write_json(spec,{'goal':'fixture:artifact','checks':[[sys.executable,'-c',
                    "from pathlib import Path; import sys; Path(sys.argv[1]).write_bytes(b'post-check content')",str(target)]]})
-        p=self.cli('--task-spec',spec,'--workdir',self.base,'--run-dir',run)
+        schema=self.base/'schema.json'
+        write_json(schema,RESPONSE_SCHEMA)
+        p=self.cli('--task-spec',spec,'--workdir',self.base,'--run-dir',run,'--schema',schema)
         result=read_json(run/'result.json')
         self.assertEqual(p.returncode,0,result)
         record=read_json(run/'artifact-manifest.json')[0]
         self.assertEqual(record['sha256'],hashlib.sha256(b'post-check content').hexdigest())
         self.assertEqual(target.read_bytes(),b'post-check content')
 
+    @requires_images
     def test_image_corrupted_by_checks_fails_final_verification(self):
         run=self.base/'corrupted-image'
         spec=self.base/'task.json'
@@ -85,6 +90,7 @@ class EdgeTests(unittest.TestCase):
         self.assertEqual(result['verification']['status'],'failed')
         self.assertFalse(result['images'][0]['valid'])
 
+    @requires_images
     def test_valid_image_replacement_has_no_generation_provenance(self):
         run=self.base/'replaced-image'
         spec=self.base/'task.json'
@@ -96,6 +102,7 @@ class EdgeTests(unittest.TestCase):
         self.assertTrue(result['images'][0]['valid'])
         self.assertEqual(result['images'][0]['confidence'],'unverified')
 
+    @requires_images
     def test_generation_collision_keeps_both_files(self):
         from PIL import Image
         run,req=self.artifact_case()
@@ -146,7 +153,7 @@ class EdgeTests(unittest.TestCase):
         self.env['CODEX_SUBAGENT_TEST_BLOCK_VERIFY']='1'
         p=self.cli('start','--task','fixture','--workdir',self.base)
         self.assertEqual(p.returncode,0,p.stderr)
-        run=Path(p.stdout.strip())
+        run=Path(json.loads(p.stdout)['run_dir'])
         self.wait_for(lambda:(run/'verifier-entered').is_file())
         self.assertEqual(self.cli('cancel',run).returncode,0)
         self.wait_for(lambda:read_json(run/'result.json')['status'] not in {'queued','running'},seconds=5)
@@ -158,7 +165,7 @@ class EdgeTests(unittest.TestCase):
     def test_lost_supervisor_can_resume_after_owned_tree_exits(self):
         p=self.cli('start','--task','fixture:long','--workdir',self.base)
         self.assertEqual(p.returncode,0,p.stderr)
-        run=Path(p.stdout.strip())
+        run=Path(json.loads(p.stdout)['run_dir'])
         self.wait_for(lambda:bool(read_json(run/'result.json').get('thread_id')))
         state=read_json(run/'result.json')
         pid=state['worker_pid']
@@ -170,7 +177,7 @@ class EdgeTests(unittest.TestCase):
         self.assertEqual(json.loads(self.cli('status',run).stdout)['status'],'lost')
         p=self.cli('resume',run,'--task','fixture resumed')
         self.assertEqual(p.returncode,0,p.stderr)
-        result=read_json(Path(p.stdout.strip())/'result.json')
+        result=read_json(Path(json.loads(p.stdout)['run_dir'])/'result.json')
         self.assertEqual(result['status'],'ok',result)
         self.assertEqual(result['thread_id'],state['thread_id'])
 

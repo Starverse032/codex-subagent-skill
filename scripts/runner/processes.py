@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import signal
 import subprocess
+import sys
 
 def launch_flags(detached=False):
     if os.name == 'nt':
@@ -183,3 +184,20 @@ def owned_tree_stopped(identity):
         return process_birth(identity['pid']) != identity['birth']
     except (OSError,KeyError):
         return False
+
+
+def console_cli(argv):
+    """Run a CLI in this process's private Windows console and relay its exit code."""
+    import ctypes
+    kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+    # A detached supervisor may have inherited Ctrl+C suppression. Clear the
+    # inheritable flag; ignore Ctrl+C in this relay alone via a Python handler.
+    kernel.SetConsoleCtrlHandler(None, False)
+    signal.signal(signal.SIGINT, lambda *_: None)
+    with subprocess.Popen(argv, stdin=sys.stdin.buffer, stdout=sys.stdout.buffer,
+                          stderr=sys.stderr.buffer) as child:
+        return child.wait()
+
+
+if __name__ == '__main__' and os.name == 'nt' and sys.argv[1:2] == ['_console_cli']:
+    raise SystemExit(console_cli(sys.argv[2:]))

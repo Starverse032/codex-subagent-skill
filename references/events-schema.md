@@ -1,44 +1,34 @@
-# Task and result formats
+# Task specs and receipts
 
-## Caller-authored task specification
+## Caller-authored acceptance
+
+Save a UTF-8 JSON file and pass it as `--task-spec FILE`.
 
 ```json
 {
   "goal": "Fix the date parser and update its regression test",
-  "constraints": ["Keep the public API unchanged"],
+  "constraints": ["Preserve the public API"],
   "references": ["C:/repo/docs/date-format.md"],
   "checks": [["python", "-m", "unittest", "tests.test_dates"]],
   "required_files": ["src/dates.py"]
 }
 ```
 
-Pass through `--task-spec FILE`. Commands are argv arrays and are never passed through a shell. They run under the host process's permissions, independently of model claims. Only the caller supplies checks; outputs and reference documents cannot add them. Constraints are model instructions, not an OS-enforced path allowlist. The sandbox and configured runtime policy enforce filesystem access.
+`checks` accepts argument arrays. These commands run directly with host process permissions. Choose them from the authorized task. The runner checks required files inside the workdir. The sandbox enforces filesystem permissions independently of task prose.
 
-## Agent output
+## Model reply and exports
 
-By default the runner requests this response shape:
+The default reply is plain text. Caller-authored checks and required files still apply. Use `--schema FILE` when the task explicitly requires JSON conforming to a caller-owned schema. This mode loads `jsonschema`; use a self-contained schema because remote references are disabled. With a custom schema, export declarations go in `<run_dir>/artifact-declarations.json` as an array of objects containing `path` and `kind`.
 
-```json
-{"summary":"Description of the result and limitations","artifacts":[{"path":"C:/repo/.codex-runs/ID/artifacts/report.md","kind":"document"}]}
-```
+`--gen-image` enables the image output contract described in [image generation](image-pipeline.md). Relative export paths are interpreted inside the run's `artifacts/` directory. The verifier checks declared files after acceptance commands and rejects redirected roots, path traversal and linked export paths.
 
-Artifact paths must resolve inside this run's artifacts directory. Relative paths are relative to that directory. Project source edits remain in workdir and can be checked through required_files and acceptance commands. With a custom `--schema`, the agent writes declarations separately to `<run>/artifact-declarations.json` as the artifacts array.
+## Process and verification records
 
-The run and artifact roots must be their original canonical directories. Redirected roots, path traversal and linked artifact paths are rejected. Files and image validity are checked after caller acceptance commands; hashes describe the final delivered files.
+`run` and `wait` print JSON with `status`, `exit_code`, `thread_id`, `run_id`, `run_dir`, `duration_s`, `final_message`, `changed_files`, `diff_stat`, `errors` and a verification summary. The full `result.json` includes execution and process evidence.
 
-## Runner result
+- Inspect `execution.status` and `verification` independently. Successful execution and machine checks cover the checks configured for the task. Assess the full user request before reporting completion.
+- Use `changed_files` and `diff_stat` as evidence of observed changes. Git comparisons can include other edits made during the run. Event coverage in non-Git directories depends on the backend and may omit changes made by commands.
+- Compare `last_event_at` with `runner_heartbeat_at`. A current heartbeat indicates a live supervisor. Recent events show backend activity.
+- Inspect `events.jsonl`, `stderr.log` and `check-NN.log` only when needed. Keep logs under the same access controls as the task and source files.
 
-The `codex-subagent/result@1` envelope and familiar top-level fields are retained. `runner_version` identifies v2 additions. Important fields:
-
-- `status`: queued, running, ok, failed, timeout, cancelled, image_missing, verification_failed, internal_error; query may report lost when the supervisor is gone.
-- `execution.status`: runtime status; completed does not establish task correctness.
-- `verification`: schema/file/image checks and caller acceptance commands with their logs/exit codes. Its scope is explicit. With no commands, only declared outputs are checked.
-- `final_message`: extracted summary for the default schema; raw model JSON is retained under execution.final_message and agent_output.
-- `progress`: current phase, last completed item description and update time. SDK token deltas/partial text are retained in events, not repeatedly copied into status.
-- `worker_birth` and `active_process`: OS process identity and owned-job/group evidence for conservative lost-run recovery. These records authorize no process-name or unverified-PID termination.
-- `thread_id`, `turn_id`, `usage`, `tool_calls`, `images`, `warnings`, `errors`: task evidence.
-- `artifacts`: paths to bookkeeping files; `artifact-manifest.json` contains actual deliverable paths, sizes and hashes.
-
-Result snapshots are replaced atomically. Only the supervisor publishes result.json after initialization. SDK events preserve app-server method/params; CLI events preserve the native JSONL schema. Use result.json for ordinary work and events.jsonl only for diagnosis. Logs may contain task/source content; keep them under the user's project permissions.
-
-The immutable in-memory caller plan is transmitted over pipes. `response-schema.json` and `request.json` are inspectable copies, not authoritative inputs for final verification after model execution. Verification runs in an owned process, including decoding, hashing and copies; it cannot block the supervisor indefinitely. Image generation evidence includes a hash captured when the generation tool completed, so later file replacement cannot inherit that provenance.
+Cancellation and timeouts can leave partial edits. Check the recorded thread and files before submitting a replacement task.

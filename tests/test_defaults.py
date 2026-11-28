@@ -38,15 +38,15 @@ class DefaultPolicyTests(unittest.TestCase):
                 'thread_id':'12345678-1234-1234-1234-123456789abc'}):
             return cli.prepare(args)[0]
 
-    def test_effort_presets_keep_sol(self):
-        for preset,effort in [('standard','medium'),('deep','high'),('max','max'),('image','medium')]:
+    def test_effort_presets_inherit_model(self):
+        for preset,effort in [('standard','medium'),('deep','high'),('max','max')]:
             with self.subTest(preset=preset):
                 req=self.prepare('--preset',preset)
-                self.assertEqual((req['model'],req['effort']),('gpt-6.2-sol',effort))
+                self.assertEqual((req['model'],req['effort']),('',effort))
         for effort in ['high','xhigh','max']:
             with self.subTest(effort=effort):
                 req=self.prepare('--effort',effort)
-                self.assertEqual((req['model'],req['effort']),('gpt-6.2-sol',effort))
+                self.assertEqual((req['model'],req['effort']),('',effort))
 
     def test_configured_default_is_used(self):
         settings=read_json(ROOT/'config/presets.json')
@@ -56,7 +56,7 @@ class DefaultPolicyTests(unittest.TestCase):
             return settings if Path(path)==ROOT/'config/presets.json' else original(path,*args,**kwargs)
         with patch.object(cli,'read_json',side_effect=configured):
             req=self.prepare()
-        self.assertEqual((req['preset'],req['model'],req['effort']),('deep','gpt-6.2-sol','high'))
+        self.assertEqual((req['preset'],req['model'],req['effort']),('deep','','high'))
 
     def test_inherit_is_explicit_and_clears_cli_overrides(self):
         req=self.prepare('--preset','inherit')
@@ -68,8 +68,8 @@ class DefaultPolicyTests(unittest.TestCase):
     def test_cli_passes_default_and_explicit_overrides(self):
         req=self.prepare()
         command=cli_command(req)
-        self.assertEqual(command[command.index('-m')+1],'gpt-6.2-sol')
-        self.assertIn('model_reasoning_effort="medium"',command)
+        self.assertNotIn('-m',command)
+        self.assertFalse(any('model_reasoning_effort=' in item for item in command))
         req=self.prepare('--preset','max','--model','chosen-model','--effort','high')
         command=cli_command(req)
         self.assertEqual(command[command.index('-m')+1],'chosen-model')
@@ -77,13 +77,13 @@ class DefaultPolicyTests(unittest.TestCase):
 
     def test_resume_preserves_model_effort_and_preset(self):
         req=self.continuation()
-        self.assertEqual((req['preset'],req['model'],req['effort']),('deep','custom-model','xhigh'))
+        self.assertEqual((req['preset'],req['model'],req['effort']),('inherit','',''))
 
     def test_resume_effort_preset_does_not_switch_model(self):
         req=self.continuation('--preset','max')
-        self.assertEqual((req['preset'],req['model'],req['effort']),('max','custom-model','max'))
+        self.assertEqual((req['preset'],req['model'],req['effort']),('max','','max'))
         req=self.continuation('--effort','high')
-        self.assertEqual((req['model'],req['effort']),('custom-model','high'))
+        self.assertEqual((req['model'],req['effort']),('','high'))
 
     def test_resume_explicit_inherit_and_model_override(self):
         req=self.continuation('--preset','inherit')

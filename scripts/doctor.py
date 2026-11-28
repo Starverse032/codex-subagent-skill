@@ -2,19 +2,12 @@
 """Read-only diagnostics. Does not launch model turns or terminate processes."""
 from pathlib import Path
 import argparse
-import importlib.metadata
 import importlib.util
-import os
 import re
-import subprocess
 import sys
 
 ROOT=Path(__file__).resolve().parent.parent
-runtime=ROOT/'.venv'/('Scripts/python.exe' if os.name=='nt' else 'bin/python')
-if runtime.is_file() and Path(sys.prefix).resolve()!=runtime.parent.parent.resolve():
-    raise SystemExit(subprocess.call([str(runtime),'-B',str(Path(__file__).resolve()),*sys.argv[1:]]))
-from runner.backends import find_codex
-from runner.store import read_json
+from runner.backends import probe_codex, resolve_runtime
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
@@ -37,18 +30,20 @@ def main():
         check('skill name',bool(re.search(r'(?m)^name: codex-subagent\s*$',match[1])),'codex-subagent')
     if not args.check_frontmatter:
         check('Python',sys.version_info>=(3,10),sys.version.split()[0])
-        for name in ['openai_codex','jsonschema','PIL']:
-            spec=importlib.util.find_spec(name)
-            check(name,spec is not None,'installed' if spec else 'run scripts/setup_runtime.py')
-        local=read_json(ROOT/'config/runtime.local.json',{})
-        if local.get('codex_path'):
-            exe=find_codex(local['codex_path'])
-            print(f'[INFO] SDK uses explicitly configured local runtime: {exe}')
-        else:
-            exe=find_codex()
-            print('[INFO] SDK uses its bundled runtime; CLI backend uses PATH/native discovery')
-        proc=subprocess.run([str(exe),'--version'],stdin=subprocess.DEVNULL,capture_output=True,timeout=15)
-        check('local CLI',proc.returncode==0,proc.stdout.decode('utf-8','replace').strip())
+        for name, flag in [('openai_codex', '--sdk'), ('jsonschema', '--schema'), ('PIL', '--image')]:
+            if importlib.util.find_spec(name) is None:
+                print(f'[INFO] Optional {name} unavailable. To enable it, run python scripts/setup_runtime.py {flag}')
+        try:
+            exe=resolve_runtime('', ROOT/'config/runtime.local.json')
+            check('local CLI', True, f'{probe_codex(exe)} ({exe})')
+        except (ValueError, OSError, TypeError) as exc:
+            check('local CLI', False, str(exc))
+        try:
+            legacy=Path.home()/'.gemini/config/agents/codex-lane-coordinator.md'
+            if legacy.is_file():
+                print(f'[INFO] Legacy Antigravity coordinator: {legacy}. v3 setup no longer manages this file.')
+        except (OSError, RuntimeError):
+            pass  # Some hosts hide the user profile.
     print(f'{len(failures)} failure(s)')
     return 4 if failures else 0
 

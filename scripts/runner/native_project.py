@@ -37,7 +37,7 @@ def ensure_project(client, request):
         }, response_model=ProjectResponse)
     if not response.project.id or response.project.name != group['title']:
         raise ValueError('Codex returned an unexpected project title or ID')
-    project_record(group, response.project.id)
+    project_record(group, response.project.id, path=request.get('state_dir'))
     return response.project.id
 
 
