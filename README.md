@@ -31,7 +31,7 @@ Verify your environment from the skill directory:
 python scripts/doctor.py
 ```
 
-See [installation and migration](references/host-integration.md) for optional dependencies (`--sdk`, `--schema`, `--images`) and v2-to-v3 migration notes.
+See [installation and migration](references/host-integration.md) for optional dependencies (`--sdk`, `--schema`, `--images`) and v2-to-v3 migration notes. An optional main-agent instruction template is also provided in [assets/AGENTS.md](assets/AGENTS.md) — copy or merge it into your host's main-agent rules (such as workspace `AGENTS.md`, Antigravity `GEMINI.md`, or Claude Code `CLAUDE.md`), and do not pass it directly to Codex subagents.
 
 ## Usage
 
@@ -70,6 +70,7 @@ python scripts/doctor.py
 - [Host Integration & Migration](references/host-integration.md) — Multi-host placement, optional dependencies, and v2 migration
 - [Image Pipeline](references/image-pipeline.md) — Optional image generation & verification
 - [Troubleshooting](references/troubleshooting.md) — Common errors and recovery
+- [Main-Agent AGENTS.md](assets/AGENTS.md) — Optional main-agent operating instructions template (for host main agents only)
 
 ## Contributors
 

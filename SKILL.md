@@ -28,4 +28,4 @@ Use `--task-file -` to supply UTF-8 stdin. Use the `run_dir` from the JSON recei
 
 Use `--sandbox read-only` for read-only tasks. Use caller-authored `--task-spec` to register required files and independent acceptance commands. Only include authorized commands because checks run with host permissions.
 
-Run `python scripts/doctor.py` to check the setup. See [CLI options](references/cli-reference.md), [task specs and receipts](references/events-schema.md), [handoff guidance](references/delegation-brief.md) and [installation or migration](references/host-integration.md).
+Run `python scripts/doctor.py` to check the setup. See [CLI options](references/cli-reference.md), [task specs and receipts](references/events-schema.md), [handoff guidance](references/delegation-brief.md), [installation or migration](references/host-integration.md) and [main-agent AGENTS.md](assets/AGENTS.md).

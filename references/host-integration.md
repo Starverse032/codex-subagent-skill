@@ -6,6 +6,8 @@ Place the skill folder in the location read by your host. For Antigravity, use t
 
 Every host follows the same command workflow. To share the queue, use the same accessible local state directory across hosts. If a host cannot access the default state directory, select a shared path allowed by that host and pass it as `--state-dir DIR` or set `CODEX_SUBAGENT_STATE_DIR`.
 
+An optional main-agent instruction template is provided at [assets/AGENTS.md](../assets/AGENTS.md). Keep it in `assets/` (rather than the skill root) so Codex subagents do not auto-load main-agent role instructions; copy or merge it only into your host's main-agent configuration.
+
 ## Optional dependencies
 
 Default CLI tasks run without third-party Python packages. To install optional features from this skill folder, choose the flags you need:
