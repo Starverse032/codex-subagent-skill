@@ -83,15 +83,15 @@ python scripts/doctor.py
       <sub>Author &amp; Maintainer</sub>
     </td>
     <td align="center">
-      <a href="https://antigravity.google">
-        <img src="assets/antigravity-avatar.png" width="80" height="80" alt="Antigravity" /><br />
-        <sub><b>Antigravity</b></sub>
+      <a href="https://github.com/apps/gemini-code-assist">
+        <img src="https://avatars.githubusercontent.com/in/956858?v=4&s=128" width="80" height="80" alt="Gemini Code Assist" /><br />
+        <sub><b>Gemini Code Assist</b></sub>
       </a><br />
       <sub>Architecture, Audit &amp; QA</sub>
     </td>
     <td align="center">
-      <a href="https://github.com/openai/codex">
-        <img src="https://avatars.githubusercontent.com/u/14957082?v=4&s=128" width="80" height="80" alt="Codex" /><br />
+      <a href="https://github.com/codex">
+        <img src="https://avatars.githubusercontent.com/u/267193182?v=4&s=128" width="80" height="80" alt="Codex" /><br />
         <sub><b>Codex</b></sub>
       </a><br />
       <sub>Core Implementation</sub>
